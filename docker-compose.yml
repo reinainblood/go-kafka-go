@@ -1,4 +1,4 @@
-version: '2'
+version: '3'
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
@@ -6,36 +6,39 @@ services:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
     ports:
-      - "32181:2181"  # Changed from 22181 to avoid conflict
+      - 32181:2181
     networks:
       - kafka-network
+    restart: always
 
   kafka:
     image: confluentinc/cp-kafka:latest
     depends_on:
       - zookeeper
     ports:
-      - "9092:9092"
-      - "29092:29092"
+      - 9092:9092
+      - 29092:29092
     networks:
       - kafka-network
     environment:
       KAFKA_BROKER_ID: 0
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: LISTENER_INTERNAL://kafka:9092,LISTENER_EXTERNAL://localhost:29092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTENER_INTERNAL:PLAINTEXT,LISTENER_EXTERNAL:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: LISTENER_INTERNAL
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+    restart: always
 
   my-python-producer:
-    image: mpradeep954/fetch-de-data-gen
+    image: mpradeep954/fetch-de-data-gen:latest
+    platform: linux/amd64
     depends_on:
       - kafka
-    restart: on-failure
+    restart: always
     ports:
-      - "9093:9093"
+      - 9093:9093
     environment:
       BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC: user-login
@@ -44,10 +47,12 @@ services:
 
   postgres:
     image: postgres:14
+    command: ["postgres", "-c", "log_statement=all", "-c", "log_min_messages=info"]
     environment:
-      POSTGRES_USER: loginapp
-      POSTGRES_PASSWORD: securepassword
-      POSTGRES_DB: logindb
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      PGUSER: ${DB_USER}
     ports:
       - "5432:5432"
     volumes:
@@ -55,6 +60,7 @@ services:
       - ./migrations:/docker-entrypoint-initdb.d
     networks:
       - kafka-network
+    restart: always
 
 networks:
   kafka-network:
